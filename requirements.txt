@@ -1,0 +1,9 @@
+alibi==0.6.2
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+tqdm
+networkx
+
