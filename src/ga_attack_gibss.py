@@ -152,7 +152,9 @@ def _find_similar_columns(feature_names, sep="_", min_dist=1, data=None):
         return count
 
     def find_name(columns_inner, start_inner, end_inner):
-        count = count_similar(columns_inner[start_inner], columns_inner[end_inner - 1])
+        count = count_similar(
+            columns_inner[start_inner], columns_inner[end_inner - 1]
+        )
         return "_".join(columns_inner[start_inner][:count])
 
     columns = []
@@ -227,62 +229,74 @@ def create_onehot_map(feature_names, sep="_", min_dist=1, data=None):
 # ***************** REMOOVE **********************
 # ***********************************************
 
+
 def find_samples(data_df, data_qt, sample, ind_feature, keep=None):
     ind_feature_copy = copy.deepcopy(ind_feature)
-    if not isinstance(ind_feature, (list, tuple)): ind_feature = [ind_feature]
+    if not isinstance(ind_feature, (list, tuple)):
+        ind_feature = [ind_feature]
     if keep is not None:
-        if len(keep)> 0:
+        if len(keep) > 0:
             ind_feature += keep
     else:
         keep = []
-        
-    other_features = [i for i in range(data_qt.shape[1]) if i not in ind_feature]
-    
-    
-    logic = np.sum(data_qt[:, other_features] == sample[0, other_features], axis=1) > len(other_features)*2/3
-    
+
+    other_features = [
+        i for i in range(data_qt.shape[1]) if i not in ind_feature
+    ]
+
+    logic = (
+        np.sum(data_qt[:, other_features] == sample[0, other_features], axis=1)
+        > len(other_features) * 2 / 3
+    )
+
     logic_keep = np.ones_like(logic)
     for keepi in keep:
-        logic_keep = np.logical_and(logic_keep, data_qt[:, keepi] == sample[0, keepi])
-    
-    if len(keep) > data_qt.shape[1]/3:
+        logic_keep = np.logical_and(
+            logic_keep, data_qt[:, keepi] == sample[0, keepi]
+        )
+
+    if len(keep) > data_qt.shape[1] / 3:
         logic = logic_keep
     else:
         logic = np.logical_and(logic, logic_keep)
 
-    
     inds_similar = np.where(logic)[0]
-    
+
     values = data_df[inds_similar, ind_feature_copy]
-    
-    if len(values) == 0 and len(keep)>0:
+
+    if len(values) == 0 and len(keep) > 0:
         inds_similar = np.where(logic_keep)[0]
         values = data_df[inds_similar, ind_feature_copy]
-        
-    if len(values) == 0 and len(keep)>0:
-        logic = np.sum(data_qt[:, other_features] == sample[0, other_features], axis=1) > len(other_features)*2/3
+
+    if len(values) == 0 and len(keep) > 0:
+        logic = (
+            np.sum(
+                data_qt[:, other_features] == sample[0, other_features], axis=1
+            )
+            > len(other_features) * 2 / 3
+        )
         inds_similar = np.where(logic)[0]
         values = data_df[inds_similar, ind_feature_copy]
-        
+
     return values.flatten()
 
 
 def find_qtval(sample, bins, ind_feature):
     bini = bins[ind_feature]
     vali = sample[0, ind_feature]
-    
-    if len(bini)>0:
-        for i in range(len(bini)-1):
+
+    if len(bini) > 0:
+        for i in range(len(bini) - 1):
             if i == 0:
-                if bini[i+1]>=vali>=bini[i]:
+                if bini[i + 1] >= vali >= bini[i]:
                     return i
             else:
-                if bini[i+1]>=vali>bini[i]:
+                if bini[i + 1] >= vali > bini[i]:
                     return i
     else:
         return vali
 
-    
+
 def df2qt(sample, bins):
     sample_qt = sample.copy()
     for i in range(sample.shape[1]):
@@ -292,53 +306,77 @@ def df2qt(sample, bins):
 
 
 def find_closest(replacement_values, crossover_val):
-    
+
     delta = np.abs(np.asarray(replacement_values) - crossover_val)
     value = replacement_values[np.argsort(delta)[0]]
-    
+
     return [value]
-  
+
 
 def create_qt(data_df, nunique=5):
     data_qt = data_df.copy()
     bins = {}
     for i, ci in enumerate(data_qt.columns):
         if data_df[ci].nunique() > nunique:
-            data_qt[ci], bins[i] = pd.qcut(data_df[ci], nunique, labels=False, duplicates='drop',  retbins=True)
+            data_qt[ci], bins[i] = pd.qcut(
+                data_df[ci],
+                nunique,
+                labels=False,
+                duplicates="drop",
+                retbins=True,
+            )
         else:
             bins[i] = []
-    
+
     return data_qt, bins
 
 
-def gibbs_sampling(data_df, data_qt, bins, sample_in, ind_features, niter = 5, crossover_val=None):
-    if not isinstance(ind_features, (list, tuple)): ind_features = [ind_features]
-    
-    sample = sample_in.reshape(1,-1).copy()
-    
+def gibbs_sampling(
+    data_df,
+    data_qt,
+    bins,
+    sample_in,
+    ind_features,
+    niter=5,
+    crossover_val=None,
+):
+    if not isinstance(ind_features, (list, tuple)):
+        ind_features = [ind_features]
+
+    sample = sample_in.reshape(1, -1).copy()
+
     if crossover_val is not None:
-        assert len(crossover_val) == len(ind_features), "crossover_val and ind_features should have same length."
-    
+        assert len(crossover_val) == len(
+            ind_features
+        ), "crossover_val and ind_features should have same length."
+
     if len(ind_features) == 1:
         niter = 1
     for i in range(niter):
         for i_ind_feature, ind_feature in enumerate(ind_features):
             sample_qt = df2qt(sample, bins)
-            
-            
-            ind_features_ = [indf for indf in ind_features if indf!=ind_feature]
-                
-            replacement_values = find_samples(data_df, data_qt, sample_qt, ind_feature, keep=ind_features_)
-            replacement_values = [xi for xi in replacement_values if xi!=sample[0, ind_feature]]
-            
+
+            ind_features_ = [
+                indf for indf in ind_features if indf != ind_feature
+            ]
+
+            replacement_values = find_samples(
+                data_df, data_qt, sample_qt, ind_feature, keep=ind_features_
+            )
+            replacement_values = [
+                xi for xi in replacement_values if xi != sample[0, ind_feature]
+            ]
+
             if len(replacement_values) == 0:
                 replacement_values = [sample[0, ind_feature]]
-            
+
             if len(replacement_values) > 1 and crossover_val is not None:
-                replacement_values = find_closest(replacement_values, crossover_val[i_ind_feature])
-                
+                replacement_values = find_closest(
+                    replacement_values, crossover_val[i_ind_feature]
+                )
+
             sample[0, ind_feature] = np.random.choice(replacement_values, 1)[0]
-    
+
     return sample
 
 
@@ -354,8 +392,12 @@ def plot_graph(x_changes, threshold=1, verbose=False, figsize=(5, 5)):
     changes = {}
     for i in range(np.asarray(x_changes).shape[1]):
         if np.sum(np.abs(x_changes[:, i])) > 0:
-            all_changes = list(zip(*np.unique(x_changes[:, i], return_counts=True)))
-            changes[i] = [changed for changed in all_changes if changed[0] != 0]
+            all_changes = list(
+                zip(*np.unique(x_changes[:, i], return_counts=True))
+            )
+            changes[i] = [
+                changed for changed in all_changes if changed[0] != 0
+            ]
             if verbose:
                 print(names[i], changes[i])
 
@@ -404,7 +446,9 @@ def plot_graph(x_changes, threshold=1, verbose=False, figsize=(5, 5)):
         for node, t in description.items():
             bb = t.get_window_extent(renderer=r)
             bbdata = bb.transformed(trans)
-            t.set_position((t.get_position()[0] + 0.1, t.get_position()[1] + 0.1))
+            t.set_position(
+                (t.get_position()[0] + 0.1, t.get_position()[1] + 0.1)
+            )
             t.set_clip_on(False)
         plt.tight_layout()
     else:
@@ -418,7 +462,10 @@ def cal_pop_fitness(
     # The fitness function calulates the sum of products between each input and its corresponding weight.
     pred = lambda x: predictproba_func(clf, x, one_hots)
     func_fitness = lambda x, x_in, y_target: (
-        np.sum(np.power(pred(x) - np.repeat([y_target], len(x), axis=0), 2), axis=1)
+        np.sum(
+            np.power(pred(x) - np.repeat([y_target], len(x), axis=0), 2),
+            axis=1,
+        )
         + alpha_0
         * alpha
         * np.sum(np.abs(np.nan_to_num(x_in) - np.nan_to_num(x)) > 0, axis=1)
@@ -450,29 +497,54 @@ def crossover(parents, X_train, data_qt, bins, offspring_size, blacklist=None):
 
         x_new = copy.deepcopy(parents[parent1_idx])
         x2 = copy.deepcopy(parents[parent2_idx])
-        
+
         inds = []
         for i in range(offspring_size[1]):
             if i not in blacklist:
                 if np.random.uniform() < 0.5:
                     inds.append(i)
-        x_new = gibbs_sampling(X_train, data_qt, bins, x_new, inds, niter = 3, crossover_val=x2[inds])[0]
+        x_new = gibbs_sampling(
+            X_train,
+            data_qt,
+            bins,
+            x_new,
+            inds,
+            niter=3,
+            crossover_val=x2[inds],
+        )[0]
         offspring.append(x_new)
 
     offspring = np.asarray(offspring)
     return offspring
 
 
-def mutation(offspring_crossover, X_train, data_qt, bins, num_mutations=1, blacklist=None, p_ind=None):
+def mutation(
+    offspring_crossover,
+    X_train,
+    data_qt,
+    bins,
+    num_mutations=1,
+    blacklist=None,
+    p_ind=None,
+):
     if p_ind is None:
         p_ind = np.ones(X_train.shape[1]) / X_train.shape[1]
     p_ind = p_ind.reshape(-1)
     for idx in range(offspring_crossover.shape[0]):
-        gene_idxs = np.random.choice(X_train.shape[1], size=num_mutations, p=p_ind)
+        gene_idxs = np.random.choice(
+            X_train.shape[1], size=num_mutations, p=p_ind
+        )
         if blacklist is not None:
             gene_idxs = [ind for ind in gene_idxs if ind not in blacklist]
-        
-        offspring_crossover[idx, :] = gibbs_sampling(X_train, data_qt, bins, offspring_crossover[idx, :], gene_idxs, niter = 3)
+
+        offspring_crossover[idx, :] = gibbs_sampling(
+            X_train,
+            data_qt,
+            bins,
+            offspring_crossover[idx, :],
+            gene_idxs,
+            niter=3,
+        )
 
     return offspring_crossover
 
@@ -560,13 +632,17 @@ def GA_Counterfactual(
         blacklist = black_list
     # ----------------------------------------
     # create the quantized data
-    
-    data_qt, bins = create_qt(pd.DataFrame(data=X_train, columns=feature_names_new))
+
+    data_qt, bins = create_qt(
+        pd.DataFrame(data=X_train, columns=feature_names_new)
+    )
     data_qt = data_qt.values
-    
+
     # ----------------------------------------
-    
-    y_target, n_class, ind_target = find_next_max(clf, x_in, ohe_vars_cat, target)
+
+    y_target, n_class, ind_target = find_next_max(
+        clf, x_in, ohe_vars_cat, target
+    )
     best_outputs = []
     num_weights = len(x_in)
     pop_size = (sol_per_pop, num_weights)
@@ -594,8 +670,10 @@ def GA_Counterfactual(
             inds = np.random.randint(0, X_train.shape[1], gen_changes)
             if blacklist is not None:
                 inds = [ind for ind in inds if ind not in blacklist]
-                
-            new_population[i,:] = gibbs_sampling(X_train, data_qt, bins, new_population[i,:], inds, niter = 3)
+
+            new_population[i, :] = gibbs_sampling(
+                X_train, data_qt, bins, new_population[i, :], inds, niter=3
+            )
 
         success = False
 
@@ -603,15 +681,23 @@ def GA_Counterfactual(
 
             # calculate the fitness to choose the best for next pool
             fitness = cal_pop_fitness(
-                clf, y_target, x_in, new_population, alpha, ohe_vars_cat, n_class
+                clf,
+                y_target,
+                x_in,
+                new_population,
+                alpha,
+                ohe_vars_cat,
+                n_class,
             )
             best_outputs.append(np.max(fitness))
 
-            best_output = new_population[numpy.where(fitness == numpy.max(fitness))[0]][
-                0
-            ]
+            best_output = new_population[
+                numpy.where(fitness == numpy.max(fitness))[0]
+            ][0]
 
-            parents = select_mating_pool(new_population, fitness, num_parents_mating)
+            parents = select_mating_pool(
+                new_population, fitness, num_parents_mating
+            )
 
             # weighting the probability of chosen column by the amount of change in outcome
             # so the ones causing more change have higher probability of being selected again
@@ -619,7 +705,9 @@ def GA_Counterfactual(
                 np.abs(np.nan_to_num(x_in) - np.nan_to_num(best_output)) > 0
             ).astype(int)
             delta = (
-                predictproba_func(clf, best_output, ohe_vars_cat)[0][ind_target]
+                predictproba_func(clf, best_output, ohe_vars_cat)[0][
+                    ind_target
+                ]
                 - predictproba_func(clf, x_in, ohe_vars_cat)[0][ind_target]
             )
             delta = np.max([0.0, delta])
@@ -648,13 +736,18 @@ def GA_Counterfactual(
 
             # Generating next generation using crossover and mutation
             offspring_crossover = crossover(
-                parents, X_train, data_qt, bins, 
+                parents,
+                X_train,
+                data_qt,
+                bins,
                 offspring_size=(pop_size[0] - parents.shape[0], num_weights),
                 blacklist=blacklist,
             )
             offspring_mutation = mutation(
                 offspring_crossover,
-                X_train, data_qt, bins,
+                X_train,
+                data_qt,
+                bins,
                 num_mutations=num_mutations,
                 blacklist=blacklist,
                 p_ind=p_ind,
@@ -687,7 +780,9 @@ def GA_Counterfactual(
             print(
                 "Predictions: ",
                 predict_func(clf, x_in, ohe_vars_cat),
-                predict_func(clf, new_population[best_match_idx[0], :], ohe_vars_cat),
+                predict_func(
+                    clf, new_population[best_match_idx[0], :], ohe_vars_cat
+                ),
             )
             matplotlib.pyplot.figure()
             matplotlib.pyplot.plot(best_outputs)
@@ -740,7 +835,13 @@ class GAdvExample(object):
     def attack(self, estimator, x, x_train):
         x_in = copy.deepcopy(x)
         x_in = x_in if np.ndim(x_in) > 1 else x_in.reshape(1, -1)
-        x_all, x_changes, x_sucess, self.ohe_vars_cat, n_class = GA_Counterfactual(
+        (
+            x_all,
+            x_changes,
+            x_sucess,
+            self.ohe_vars_cat,
+            n_class,
+        ) = GA_Counterfactual(
             estimator,
             x_train,
             x_in,
@@ -767,19 +868,26 @@ class GAdvExample(object):
                 )
 
             df_in = pd.DataFrame(data=x_in, columns=self.feature_names)
-            df_adv = pd.DataFrame(data=x_sucess_ord, columns=self.feature_names)
+            df_adv = pd.DataFrame(
+                data=x_sucess_ord, columns=self.feature_names
+            )
 
             for i in range(n_class):
                 df_in[f"P{i}"] = estimator.predict_proba(x_in)[0][i]
 
                 df_adv[f"P{i}"] = estimator.predict_proba(x_sucess_ord)[:, i]
 
-            self.results = pd.concat([df_in, df_adv], axis=0).reset_index(drop=True)
+            self.results = pd.concat([df_in, df_adv], axis=0).reset_index(
+                drop=True
+            )
             self.results.drop_duplicates(inplace=True)
 
             def highlight_change(s):
                 is_changed = s != s.iloc[0]
-                return ["background-color: darkorange" if v else "" for v in is_changed]
+                return [
+                    "background-color: darkorange" if v else ""
+                    for v in is_changed
+                ]
 
             self.results = self.results.style.apply(highlight_change)
 
