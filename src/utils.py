@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
+plt.style.use("ggplot")
+
 
 def ord_to_ohe(
     X_ord: np.ndarray, cat_vars_ord: dict
