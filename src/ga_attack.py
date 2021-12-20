@@ -7,8 +7,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from .utils import _find_cols, _update_feature_name
-from .utils import ord_to_ohe as alibi_ord_to_ohe
 from .utils import ohe_to_ord as alibi_ohe_to_ord
+from .utils import ord_to_ohe as alibi_ord_to_ohe
 
 np.random.seed(555)
 
